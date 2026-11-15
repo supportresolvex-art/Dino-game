@@ -1,0 +1,9 @@
+{
+  "name": "Dino Runner",
+  "short_name": "Dino Runner",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f7f7f7",
+  "theme_color": "#111b21",
+  "orientation": "portrait"
+}

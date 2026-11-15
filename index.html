@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#111b21" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Dino Runner</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+  <!-- Firebase Compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+</head>
+<body>
+
+  <!-- =========================================================
+       1. PUBLIC FRONTEND: 2D DINO RUNNER GAME
+       ========================================================= -->
+  <div id="game-view" class="view active">
+    <header class="game-header">
+      <div class="game-brand">
+        <span class="dino-badge">🦖</span>
+        <div>
+          <h1>Dino Runner</h1>
+          <small>Tap or Space to Jump</small>
+        </div>
+      </div>
+      <div class="game-controls-top">
+        <div class="score-pill">
+          <span>HI <strong id="high-score">00000</strong></span>
+          <span class="divider">|</span>
+          <span id="current-score">00000</span>
+        </div>
+        <!-- 5-Second Hold Secret Trigger on Settings Icon -->
+        <button id="settings-btn" class="icon-btn settings-trigger" aria-label="Settings" title="Settings">
+          <svg class="hold-ring" viewBox="0 0 44 44">
+            <circle cx="22" cy="22" r="19"></circle>
+          </svg>
+          <span class="gear-icon">⚙️</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="game-stage">
+      <canvas id="dino-canvas"></canvas>
+      <div id="game-overlay" class="game-overlay">
+        <div class="overlay-card">
+          <h2 id="overlay-title">DINO RUNNER</h2>
+          <p id="overlay-subtitle">Tap anywhere on screen to jump &amp; dodge obstacles!</p>
+          <button id="start-game-btn" class="primary-game-btn">PLAY NOW</button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="game-footer">
+      <button id="mobile-jump-btn" class="action-pad-btn">▲ JUMP</button>
+      <button id="mobile-duck-btn" class="action-pad-btn secondary">▼ DUCK</button>
+    </footer>
+  </div>
+
+  <!-- =========================================================
+       2. NORMAL GAME SETTINGS MODAL (Covers the 5s Trigger)
+       ========================================================= -->
+  <div id="game-settings-modal" class="modal hidden">
+    <div class="modal-card game-modal-card">
+      <div class="modal-header">
+        <h3>⚙️ Game Settings</h3>
+        <button class="close-modal-btn" data-close="game-settings-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-row">
+          <span>🔊 Retro Sound Effects</span>
+          <input type="checkbox" id="toggle-sound" checked />
+        </div>
+        <div class="setting-row">
+          <span>🌙 Night Mode Theme</span>
+          <input type="checkbox" id="toggle-night" />
+        </div>
+        <div class="setting-row">
+          <span>⚡ Game Speed</span>
+          <select id="game-speed-select">
+            <option value="6">Normal</option>
+            <option value="8">Fast</option>
+            <option value="10">Arcade Pro</option>
+          </select>
+        </div>
+        <button id="reset-highscore-btn" class="danger-outline-btn full-width">Reset High Score</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       3. HIDDEN VAULT PASSWORD MODAL (Opens after 5s hold)
+       ========================================================= -->
+  <div id="vault-auth-modal" class="modal hidden">
+    <div class="modal-card vault-card">
+      <div class="modal-header">
+        <h3>🔐 Restricted Access</h3>
+        <button class="close-modal-btn" data-close="vault-auth-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted-text">Enter access key to continue</p>
+        <input type="password" id="vault-password-input" class="vault-input" placeholder="••••••" autocomplete="off" />
+        <p id="vault-error-msg" class="error-text hidden">Invalid access key.</p>
+        <button id="vault-unlock-btn" class="vault-submit-btn">UNLOCK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       4. FIRST-TIME PROFILE SETUP MODAL (11-Digit UID)
+       ========================================================= -->
+  <div id="profile-setup-modal" class="modal hidden">
+    <div class="modal-card vault-card">
+      <div class="modal-header">
+        <h3>🆔 Create Secret Identity</h3>
+      </div>
+      <div class="modal-body">
+        <div class="avatar-upload-box">
+          <img id="setup-dp-preview" src="" alt="DP" class="avatar-lg" />
+          <label for="setup-dp-input" class="upload-chip">📷 Choose DP</label>
+          <input type="file" id="setup-dp-input" accept="image/*" hidden />
+        </div>
+        <div class="uid-display-box">
+          <span>Your Permanent 11-Digit UID:</span>
+          <strong id="generated-uid-text">00000000000</strong>
+        </div>
+        <input type="text" id="setup-name-input" class="vault-input" placeholder="Enter Display Name" maxlength="25" />
+        <input type="text" id="setup-bio-input" class="vault-input" placeholder="Write a short bio (e.g. Available)" maxlength="70" />
+        <button id="save-profile-btn" class="vault-submit-btn">START MESSAGING</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       5. SECRET WHATSAPP-STYLE CHAT INTERFACE
+       ========================================================= -->
+  <div id="chat-view" class="view hidden">
+    <!-- Global Admin Broadcast Banner -->
+    <div id="global-broadcast-bar" class="broadcast-bar hidden">
+      <span>📢</span>
+      <marquee id="broadcast-text"></marquee>
+    </div>
+
+    <!-- Top App Bar -->
+    <header class="wa-header">
+      <div class="wa-header-left">
+        <img id="my-header-dp" src="" alt="Me" class="avatar-sm clickable" title="Edit Profile" />
+        <div>
+          <div class="wa-title-row">
+            <h2 id="my-header-name">Secret Chat</h2>
+            <span id="total-unread-badge" class="badge-pill hidden">0</span>
+          </div>
+          <div class="uid-copy-row" id="copy-my-uid-btn" title="Tap to copy UID">
+            <span>UID: <strong id="my-header-uid">-----------</strong></span>
+            <span class="copy-tag">📋 Copy</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="wa-header-actions">
+        <!-- Visible ONLY when logged in with Admin Password -->
+        <button id="open-admin-panel-btn" class="admin-crown-btn hidden" title="Admin Control Panel">👑 Admin</button>
+        <button id="new-chat-btn" class="wa-icon-btn" title="Find 11-Digit UID">➕</button>
+        <button id="panic-lock-btn" class="wa-icon-btn panic-btn" title="Quick Exit to Game (or Shake Phone)">🎮</button>
+      </div>
+    </header>
+
+    <!-- Chat List Screen -->
+    <div id="chat-list-screen" class="wa-body">
+      <div class="search-bar-wrap">
+        <input type="text" id="chat-search-input" placeholder="Search chats or enter 11-digit UID..." />
+      </div>
+      <div id="contacts-list" class="contacts-list">
+        <div class="empty-state">
+          <p>🔒 End-to-End Stealth Mode Active</p>
+          <small>Tap <strong>➕</strong> above and enter a friend's 11-digit UID to start chatting.</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Conversation Screen -->
+    <div id="conversation-screen" class="wa-conversation hidden">
+      <div class="conv-header">
+        <button id="back-to-chats-btn" class="wa-icon-btn">←</button>
+        <img id="peer-dp" src="" alt="Peer" class="avatar-sm" />
+        <div class="conv-peer-info" id="view-peer-profile-btn">
+          <h3 id="peer-name">User</h3>
+          <small id="peer-status" class="status-text">offline</small>
+        </div>
+        <button id="clear-chat-btn" class="wa-icon-btn" title="Clear Chat History">🗑️</button>
+      </div>
+
+      <div id="messages-container" class="messages-container"></div>
+
+      <!-- Quick Emoji Bar -->
+      <div id="emoji-bar" class="emoji-bar hidden">
+        <span class="emoji-item">😀</span>
+        <span class="emoji-item">😂</span>
+        <span class="emoji-item">❤️</span>
+        <span class="emoji-item">🔥</span>
+        <span class="emoji-item">👍</span>
+        <span class="emoji-item">🙏</span>
+        <span class="emoji-item">😎</span>
+        <span class="emoji-item">🎉</span>
+        <span class="emoji-item">🤫</span>
+        <span class="emoji-item">💯</span>
+      </div>
+
+      <div id="media-progress-bar" class="media-progress hidden">
+        <span id="media-progress-text">Compressing media...</span>
+      </div>
+
+      <footer class="conv-footer">
+        <button id="emoji-toggle-btn" class="wa-emoji-btn" title="Emojis">😊</button>
+        <label for="chat-media-input" class="wa-attach-btn" title="Send Photo or Video">📎</label>
+        <input type="file" id="chat-media-input" accept="image/*,video/*" hidden />
+        <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" />
+        <button id="send-msg-btn" class="wa-send-btn">➤</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       6. FIND USER BY 11-DIGIT UID MODAL
+       ========================================================= -->
+  <div id="find-uid-modal" class="modal hidden">
+    <div class="modal-card vault-card">
+      <div class="modal-header">
+        <h3>🔍 Connect via 11-Digit UID</h3>
+        <button class="close-modal-btn" data-close="find-uid-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted-text">Enter the exact 11-digit UID of the other person:</p>
+        <input type="tel" id="search-uid-input" class="vault-input uid-input" placeholder="e.g. 48291057364" maxlength="11" />
+        <p id="uid-search-error" class="error-text hidden"></p>
+        <button id="search-uid-submit" class="vault-submit-btn">FIND &amp; CHAT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       7. EDIT MY PROFILE MODAL (DP, Name, Bio)
+       ========================================================= -->
+  <div id="edit-profile-modal" class="modal hidden">
+    <div class="modal-card vault-card">
+      <div class="modal-header">
+        <h3>👤 My Secret Profile</h3>
+        <button class="close-modal-btn" data-close="edit-profile-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="avatar-upload-box">
+          <img id="edit-dp-preview" src="" alt="DP" class="avatar-lg" />
+          <label for="edit-dp-input" class="upload-chip">📷 Change DP</label>
+          <input type="file" id="edit-dp-input" accept="image/*" hidden />
+        </div>
+        <div class="uid-display-box">
+          <span>My 11-Digit UID:</span>
+          <strong id="edit-uid-label">-----------</strong>
+        </div>
+        <label class="field-label">Display Name</label>
+        <input type="text" id="edit-name-input" class="vault-input" maxlength="25" />
+        <label class="field-label">Bio / About</label>
+        <input type="text" id="edit-bio-input" class="vault-input" maxlength="70" />
+        <button id="update-profile-btn" class="vault-submit-btn">SAVE CHANGES</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       8. VIEW PEER PROFILE MODAL
+       ========================================================= -->
+  <div id="peer-profile-modal" class="modal hidden">
+    <div class="modal-card vault-card">
+      <div class="modal-header">
+        <h3>ℹ️ Contact Info</h3>
+        <button class="close-modal-btn" data-close="peer-profile-modal">✕</button>
+      </div>
+      <div class="modal-body center-align">
+        <img id="info-peer-dp" src="" alt="DP" class="avatar-lg" />
+        <h3 id="info-peer-name" style="margin-top:10px;">Name</h3>
+        <p id="info-peer-uid" class="uid-chip">UID: -----------</p>
+        <div class="bio-box">
+          <small>BIO</small>
+          <p id="info-peer-bio">Available</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       9. SECRET MASTER ADMIN CONTROL PANEL (PRIVACY-LOCKED)
+       - Admin CANNOT view private chats between users
+       - Full control over passwords, users, bans, media & app
+       ========================================================= -->
+  <div id="admin-panel-modal" class="modal hidden">
+    <div class="modal-card admin-card">
+      <div class="modal-header admin-header">
+        <div>
+          <h3>👑 Master Admin Control</h3>
+          <small class="privacy-badge">🔒 Chat Privacy Lock Active (User chats hidden)</small>
+        </div>
+        <button class="close-modal-btn" data-close="admin-panel-modal">✕</button>
+      </div>
+
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="admin-tab-controls">⚙️ App Controls</button>
+        <button class="admin-tab" data-tab="admin-tab-users">👥 Users (<span id="admin-user-count">0</span>)</button>
+        <button class="admin-tab" data-tab="admin-tab-storage">🗄️ Storage</button>
+      </div>
+
+      <div class="modal-body admin-body">
+        <!-- TAB 1: APP CONTROLS & PASSWORDS -->
+        <div id="admin-tab-controls" class="admin-tab-pane active">
+          <div class="admin-section">
+            <h4>🔑 Vault Passwords (Live Update)</h4>
+            <label class="field-label">Admin Password</label>
+            <input type="text" id="admin-cfg-adminpass" class="vault-input" />
+            <label class="field-label">Users Password</label>
+            <input type="text" id="admin-cfg-userpass" class="vault-input" />
+            <label class="field-label">Dummy (Decoy) Password</label>
+            <input type="text" id="admin-cfg-dummypass" class="vault-input" />
+          </div>
+
+          <div class="admin-section">
+            <h4>🎛️ App Behavior &amp; Broadcast</h4>
+            <div class="setting-row">
+              <span>🚧 Maintenance Mode (Lock User Login)</span>
+              <input type="checkbox" id="admin-cfg-maintenance" />
+            </div>
+            <div class="setting-row">
+              <span>📎 Allow Photo &amp; Video Sharing</span>
+              <input type="checkbox" id="admin-cfg-media-enabled" checked />
+            </div>
+            <label class="field-label">⏱️ Auto-Delete Media Timer</label>
+            <select id="admin-cfg-media-ttl" class="vault-input">
+              <option value="60000">1 Minute (Ultra Light)</option>
+              <option value="600000" selected>10 Minutes (Recommended)</option>
+              <option value="3600000">1 Hour</option>
+              <option value="86400000">24 Hours</option>
+            </select>
+            <label class="field-label">📢 Global Notice Banner (Leave blank to hide)</label>
+            <input type="text" id="admin-cfg-broadcast" class="vault-input" placeholder="e.g. Server maintenance at 10 PM" />
+          </div>
+
+          <button id="admin-save-config-btn" class="vault-submit-btn">💾 SAVE ALL APP SETTINGS</button>
+        </div>
+
+        <!-- TAB 2: REGISTERED USERS & BLOCK CONTROL -->
+        <div id="admin-tab-users" class="admin-tab-pane hidden">
+          <p class="muted-text">Manage registered 11-digit UIDs. Private messages remain strictly encrypted &amp; hidden.</p>
+          <div id="admin-users-list" class="admin-users-list"></div>
+        </div>
+
+        <!-- TAB 3: SERVER STORAGE & MEDIA CLEANER -->
+        <div id="admin-tab-storage" class="admin-tab-pane hidden">
+          <div class="stat-grid">
+            <div class="stat-box">
+              <strong id="stat-total-users">0</strong>
+              <span>Total Users</span>
+            </div>
+            <div class="stat-box">
+              <strong id="stat-online-users">0</strong>
+              <span>Online Now</span>
+            </div>
+          </div>
+
+          <div class="admin-section">
+            <h4>🧹 Free Server Optimizer</h4>
+            <p class="muted-text">Purge all temporary photos &amp; videos from Firebase immediately. Text chats will NOT be deleted.</p>
+            <button id="admin-purge-media-btn" class="danger-btn full-width">🗑️ PURGE ALL MEDIA NOW</button>
+          </div>
+
+          <div class="admin-section">
+            <h4>☁️ Optional Cloudinary Video Config</h4>
+            <p class="muted-text">Pre-configured with built-in free compression. Optional: add Cloudinary unsigned keys for HD videos.</p>
+            <input type="text" id="admin-cfg-cloudname" class="vault-input" placeholder="Cloudinary Cloud Name (Optional)" />
+            <input type="text" id="admin-cfg-cloudpreset" class="vault-input" placeholder="Unsigned Upload Preset (Optional)" />
+            <button id="admin-save-cloud-btn" class="vault-submit-btn">SAVE CLOUDINARY CONFIG</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       10. FULLSCREEN MEDIA VIEWER MODAL
+       ========================================================= -->
+  <div id="media-viewer-modal" class="modal hidden">
+    <div class="media-viewer-box">
+      <button class="close-viewer-btn" data-close="media-viewer-modal">✕ Close</button>
+      <img id="viewer-img" class="hidden" alt="Shared Media" />
+      <video id="viewer-video" class="hidden" controls playsinline></video>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-box" class="toast hidden"></div>
+
+  <!-- Modular Scripts -->
+  <script src="firebase-config.js"></script>
+  <script src="media.js"></script>
+  <script src="admin.js"></script>
+  <script src="chat.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
